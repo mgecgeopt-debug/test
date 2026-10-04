@@ -11,6 +11,7 @@ from deal_finder.apify import Apify
 from deal_finder.config import lade_config
 from deal_finder.db import sync_suchen, verbinde
 from deal_finder.gemini import Gemini
+from deal_finder.melder import melde_deals, verarbeite_reaktionen
 from deal_finder.notifier import Telegram
 from deal_finder.scheduler import Durchgang, starte_dauerbetrieb
 
@@ -44,9 +45,13 @@ def main(argv: list[str]) -> int:
         gemini = Gemini(cfg.geheimnis("GEMINI_API_KEY"), cfg.analyst["gemini_modell"])
 
     def analysiere(con, _):
+        if telegram:
+            verarbeite_reaktionen(con, telegram)
         bewertungen = bewerte_alle(con, unbewertete_ids(con), cfg.analyst)
         if gemini:
-            pruefe_kandidaten(con, bewertungen, gemini, cfg.analyst)
+            deals = pruefe_kandidaten(con, bewertungen, gemini, cfg.analyst)
+            if telegram and deals:
+                melde_deals(con, deals, telegram, cfg.analyst)
 
     durchgang.nach_durchgang = analysiere
     if "--einmal" in argv:

@@ -43,6 +43,21 @@ class Telegram:
         except Exception as e:  # noqa: BLE001
             log.error("Warnung konnte nicht gesendet werden: %s", e)
 
+    def hole_updates(self, offset: int | None = None) -> list[dict]:
+        """getUpdates ohne Warten: nur Knopfdrücke (callback_query)."""
+        daten = {"timeout": 0, "allowed_updates": ["callback_query"]}
+        if offset is not None:
+            daten["offset"] = offset
+        return self._post("getUpdates", **daten)
+
+    def antworte_callback(self, callback_id: str, text: str) -> None:
+        self._post("answerCallbackQuery", callback_query_id=callback_id, text=text)
+
+    def setze_knoepfe(self, message_id: int, knoepfe: list[list[dict]] | None) -> None:
+        """Ersetzt die Knöpfe unter einer Nachricht (None = entfernen)."""
+        self._post("editMessageReplyMarkup", chat_id=self.chat_id, message_id=message_id,
+                   reply_markup={"inline_keyboard": knoepfe or []})
+
     def bot_info(self) -> dict:
         """Prüft Token: gibt Name und Username des Bots zurück."""
         return self._post("getMe")

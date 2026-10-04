@@ -60,7 +60,23 @@ CREATE TABLE IF NOT EXISTS evaluations (
     carl_reaktion      TEXT           -- angeschrieben | gekauft | uninteressant
 );
 CREATE INDEX IF NOT EXISTS idx_evaluations_listing ON evaluations(listing_id);
+
+CREATE TABLE IF NOT EXISTS kv (          -- kleine Merkzettel, z. B. Telegram-Update-Offset
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
 """
+
+
+def kv_get(con: sqlite3.Connection, key: str, default: str | None = None) -> str | None:
+    z = con.execute("SELECT value FROM kv WHERE key = ?", (key,)).fetchone()
+    return z[0] if z else default
+
+
+def kv_set(con: sqlite3.Connection, key: str, value: str) -> None:
+    con.execute("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value))
+    con.commit()
 
 
 def verbinde(pfad: Path | str) -> sqlite3.Connection:
