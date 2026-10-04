@@ -27,9 +27,11 @@ def angebot(preis: float, faktor: float) -> int:
     return int(round(preis * faktor / 5.0) * 5)
 
 
-def verhandlungstext(produkt: str, preis: float, versand: float | None, frage: str, faktor: float) -> str:
+def verhandlungstext(produkt: str, preis: float, versand: float | None, frage: str, faktor: float,
+                     risiken: list[str] | None = None) -> str:
     betrag = angebot(preis, faktor)
-    versand_text = "inklusive Versand" if versand is None or versand > 0 else "bei Abholung"
+    nur_abholung = versand == 0 or any("abhol" in r.lower() for r in risiken or [])
+    versand_text = "bei Abholung" if nur_abholung else "inklusive Versand"
     frage = (frage or "").strip() or "Ist alles getestet und läuft stabil?"
     return f"Hallo, ich hätte Interesse am {produkt}. Würdest du ihn für {betrag} Euro {versand_text} abgeben? {frage} Viele Grüße"
 
@@ -41,7 +43,7 @@ def baue_meldung(z: sqlite3.Row, b: Bewertung, a: dict) -> tuple[str, str | None
     versand_s = "kostenlos" if versand == 0 else (f"+ {versand:.2f} €" if versand else "Abholung/unklar")
     risiken = ", ".join(b.ki_risiken) if b.ki_risiken else "keine"
     bilder = json.loads(z["image_urls"] or "[]")
-    text = verhandlungstext(produkt, z["price"], versand, b.ki_frage or "", a["angebotsfaktor"])
+    text = verhandlungstext(produkt, z["price"], versand, b.ki_frage or "", a["angebotsfaktor"], b.ki_risiken)
     zeilen = [
         f"🔥 <b>{html.escape(z['title'])}</b>",
         f"💶 <b>{z['price']:.0f} €</b> Versand {versand_s} · 📍 {html.escape(z['address'] or '?')}",

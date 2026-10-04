@@ -50,6 +50,7 @@ def test_verhandlungstext():
     assert t == "Hallo, ich hätte Interesse am i7-13700K. Würdest du ihn für 155 Euro inklusive Versand abgeben? Läuft sie stabil? Viele Grüße"
     assert "bei Abholung" in verhandlungstext("x", 100, 0, "", 0.8)
     assert "getestet" in verhandlungstext("x", 100, None, "", 0.8)
+    assert "bei Abholung" in verhandlungstext("x", 100, None, "", 0.8, ["Nur Selbstabholung"])
 
 
 def deal_in_db(con):
