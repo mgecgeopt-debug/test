@@ -8,7 +8,8 @@ def test_schema_und_suchen():
     sync_suchen(con, cfg.suchen)
     tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"searches", "listings", "price_history", "evaluations"} <= tabellen
-    assert con.execute("SELECT COUNT(*) FROM searches").fetchone()[0] == 3
+    n = len(cfg.suchen)
+    assert con.execute("SELECT COUNT(*) FROM searches").fetchone()[0] == n
     # zweiter Sync darf nichts verdoppeln
     sync_suchen(con, cfg.suchen)
-    assert con.execute("SELECT COUNT(*) FROM searches").fetchone()[0] == 3
+    assert con.execute("SELECT COUNT(*) FROM searches").fetchone()[0] == n

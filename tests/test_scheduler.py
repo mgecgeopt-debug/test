@@ -4,7 +4,7 @@ import pytest
 
 from deal_finder.apify import ApifyFehler
 from deal_finder.collector import Ergebnis
-from deal_finder.config import PROJEKT_ORDNER, lade_config
+from deal_finder.config import PROJEKT_ORDNER, Suche, lade_config
 from deal_finder.scheduler import Durchgang, in_ruhezeit
 
 
@@ -40,8 +40,11 @@ class FakeTelegram:
 
 @pytest.fixture
 def cfg(tmp_path):
+    """Feste Suchen, unabhängig von der echten config.yaml."""
     c = lade_config(PROJEKT_ORDNER / "config.yaml")
     c.datenbank = tmp_path / "test.sqlite"
+    c.suchen = [Suche("i5 12600K", "i5-12600k", "T1"), Suche("i7 13700K", "i7-13700k", "T2"),
+                Suche("RTX 3070", "rtx-3070", "T3")]
     return c
 
 
