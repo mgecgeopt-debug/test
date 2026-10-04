@@ -125,3 +125,44 @@ def test_bewerte_alle_und_unbewertete(con):
     bewerte_alle(con, ["1"], A, JETZT)
     speichere_items(con, 2, [item(1, "180 €")], JETZT.isoformat())
     assert unbewertete_ids(con) == []
+
+
+class FakeGemini:
+    def __init__(self, passt=True, score=8, echtes_foto=True):
+        from deal_finder.gemini import BildBefund, TextBefund
+        self.text = TextBefund(passt, score, ["ungetestet"], "Läuft sie stabil?")
+        self.bild = BildBefund(echtes_foto=echtes_foto, befund="echtes Foto")
+        self.aufrufe = 0
+
+    def pruefe_text(self, *a):
+        self.aufrufe += 1
+        return self.text
+
+    def pruefe_bilder(self, *a):
+        return self.bild
+
+
+def test_pruefe_kandidaten_deal(con):
+    from deal_finder.analyst import pruefe_kandidaten
+    fuelle_markt(con)
+    speichere_items(con, 2, [item(1, "200 €"), item(2, "250 €")], JETZT.isoformat())
+    bew = bewerte_alle(con, ["1", "2"], A, JETZT)
+    g = FakeGemini()
+    deals = pruefe_kandidaten(con, bew, g, A, JETZT)
+    assert [d.listing_id for d in deals] == ["1"] and g.aufrufe == 1  # nur der Kandidat geht zu Gemini
+    e = con.execute("SELECT * FROM evaluations WHERE listing_id='1'").fetchone()
+    assert e["ergebnis"] == "deal" and e["ki_score"] == 8 and "ungetestet" in e["ki_risiken"]
+    assert e["ki_frage"] == "Läuft sie stabil?" and e["ki_bildbefund"] == "echtes Foto"
+
+
+def test_pruefe_kandidaten_abgelehnt(con):
+    from deal_finder.analyst import pruefe_kandidaten
+    fuelle_markt(con)
+    speichere_items(con, 2, [item(1, "200 €"), item(2, "200 €")], JETZT.isoformat())
+    bew = bewerte_alle(con, ["1"], A, JETZT)
+    assert pruefe_kandidaten(con, bew, FakeGemini(echtes_foto=False), A, JETZT) == []   # 8 − 3 = 5 < 7
+    e = con.execute("SELECT ergebnis, grund, ki_risiken FROM evaluations WHERE listing_id='1'").fetchone()
+    assert e["ergebnis"] == "ki_abgelehnt" and "Score 5" in e["grund"] and "Stock" in e["ki_risiken"]
+    bew = bewerte_alle(con, ["2"], A, JETZT)
+    assert pruefe_kandidaten(con, bew, FakeGemini(passt=False), A, JETZT) == []
+    assert con.execute("SELECT grund FROM evaluations WHERE listing_id='2'").fetchone()[0] == "nicht das gesuchte Produkt"

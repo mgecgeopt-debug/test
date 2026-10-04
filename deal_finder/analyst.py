@@ -8,7 +8,7 @@ import logging
 import re
 import sqlite3
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 log = logging.getLogger(__name__)
@@ -33,6 +33,10 @@ class Bewertung:
     vergleichsanzahl: int = 0
     abstand_prozent: float | None = None
     marge_euro: float | None = None
+    ki_score: int | None = None
+    ki_risiken: list[str] = field(default_factory=list)
+    ki_bildbefund: str | None = None
+    ki_frage: str | None = None
 
 
 def ist_ausgeschlossen(title: str, preis: float | None, ausschluss: list[str]) -> str | None:
@@ -170,3 +174,60 @@ def unbewertete_ids(con: sqlite3.Connection) -> list[str]:
 def deal_text(b: Bewertung) -> str:
     """Kurze Zusammenfassung fürs Log."""
     return json.dumps(b.__dict__, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# Stufe 2 und 3: Kandidaten mit Gemini prüfen
+# ---------------------------------------------------------------------------
+
+def pruefe_kandidaten(con: sqlite3.Connection, bewertungen: list[Bewertung], gemini, a: dict,
+                      jetzt: datetime | None = None) -> list[Bewertung]:
+    """Schickt alle Kandidaten aus Stufe 1 durch Text- und Bildprüfung.
+
+    Aktualisiert die zuletzt gespeicherte Bewertung je Anzeige: ergebnis wird 'deal'
+    oder 'ki_abgelehnt'. Gibt die Deals zurück. Fehler bei Gemini werden geloggt,
+    die Anzeige bleibt dann 'kandidat' und wird beim nächsten Durchgang nicht erneut
+    geprüft (bewusst: lieber ein verpasster Deal als Endlosschleife bei API-Störung).
+    """
+    from deal_finder.gemini import gesamt_score  # lokal, damit analyst.py ohne google-genai testbar bleibt
+
+    deals = []
+    for b in bewertungen:
+        if b.ergebnis != "kandidat":
+            continue
+        z = con.execute(
+            """SELECT l.title, l.price, l.condition, l.description, l.image_urls, s.produkt_key
+               FROM listings l JOIN searches s ON s.id = l.search_id WHERE l.id = ?""",
+            (b.listing_id,),
+        ).fetchone()
+        try:
+            text = gemini.pruefe_text(z["produkt_key"], z["title"], z["price"], z["condition"], z["description"])
+            bild = gemini.pruefe_bilder(z["produkt_key"], z["title"], json.loads(z["image_urls"]), a["max_bilder"])
+        except Exception as e:  # noqa: BLE001
+            log.error("Gemini-Prüfung für %s fehlgeschlagen: %s", b.listing_id, e)
+            continue
+        score = gesamt_score(text, bild)
+        if not text.passt:
+            ergebnis, grund = "ki_abgelehnt", "nicht das gesuchte Produkt"
+        elif score < a["mindest_ki_score"]:
+            ergebnis, grund = "ki_abgelehnt", f"KI-Score {score} < {a['mindest_ki_score']}"
+        else:
+            ergebnis, grund = "deal", None
+        risiken = list(text.risiken)
+        if not bild.echtes_foto:
+            risiken.append("Stock-/Herstellerbild")
+        if bild.schaeden:
+            risiken.append("sichtbare Schäden")
+        con.execute(
+            """UPDATE evaluations SET ergebnis = ?, grund = ?, ki_score = ?, ki_risiken = ?, ki_bildbefund = ?, ki_frage = ?
+               WHERE id = (SELECT id FROM evaluations WHERE listing_id = ? ORDER BY bewertet_am DESC, id DESC LIMIT 1)""",
+            (ergebnis, grund, score, json.dumps(risiken, ensure_ascii=False), bild.befund, text.frage, b.listing_id),
+        )
+        con.commit()
+        b.ergebnis, b.grund = ergebnis, grund
+        b.ki_score, b.ki_risiken, b.ki_bildbefund, b.ki_frage = score, risiken, bild.befund, text.frage
+        log.info("Gemini %s: %s (Score %d) %s", b.listing_id, ergebnis, score, "; ".join(risiken))
+        if ergebnis == "deal":
+            deals.append(b)
+    log.info("Analyst Stufe 2+3: %d Deals", len(deals))
+    return deals

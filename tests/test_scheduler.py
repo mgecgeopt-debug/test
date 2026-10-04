@@ -45,6 +45,10 @@ def cfg(tmp_path):
     return c
 
 
+def task_id(cfg, name):
+    return next(s.apify_task_id for s in cfg.suchen if s.name == name)
+
+
 def durchgang(cfg, apify, stunde=12):
     schlaf = []
     d = Durchgang(cfg, apify, FakeTelegram(), schlafen=schlaf.append,
@@ -67,7 +71,7 @@ def test_normaler_durchgang(cfg):
 
 
 def test_einmal_fehler_dann_ok(cfg):
-    apify = FakeApify({"TASK_ID_I7_13700K": 1})
+    apify = FakeApify({task_id(cfg, "i7 13700K"): 1})
     d, schlaf = durchgang(cfg, apify)
     erg = d.laufe()
     assert isinstance(erg["i7 13700K"], Ergebnis)
@@ -76,7 +80,7 @@ def test_einmal_fehler_dann_ok(cfg):
 
 
 def test_zweimal_fehler_warnung(cfg):
-    apify = FakeApify({"TASK_ID_RTX_3070": 2})
+    apify = FakeApify({task_id(cfg, "RTX 3070"): 2})
     d, schlaf = durchgang(cfg, apify)
     erg = d.laufe()
     assert erg["RTX 3070"] is None

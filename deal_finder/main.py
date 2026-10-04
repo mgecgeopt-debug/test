@@ -6,10 +6,11 @@ Optionen:
 import logging
 import sys
 
-from deal_finder.analyst import bewerte_alle, unbewertete_ids
+from deal_finder.analyst import bewerte_alle, pruefe_kandidaten, unbewertete_ids
 from deal_finder.apify import Apify
 from deal_finder.config import lade_config
 from deal_finder.db import sync_suchen, verbinde
+from deal_finder.gemini import Gemini
 from deal_finder.notifier import Telegram
 from deal_finder.scheduler import Durchgang, starte_dauerbetrieb
 
@@ -36,7 +37,18 @@ def main(argv: list[str]) -> int:
         telegram = Telegram(cfg.geheimnis("TELEGRAM_BOT_TOKEN"), cfg.geheimnis("TELEGRAM_CHAT_ID"))
 
     durchgang = Durchgang(cfg, Apify(cfg.geheimnis("APIFY_TOKEN")), telegram)
-    durchgang.nach_durchgang = lambda con, _: bewerte_alle(con, unbewertete_ids(con), cfg.analyst)
+    gemini = None
+    if "GEMINI_API_KEY" in fehlend:
+        log.warning("GEMINI_API_KEY fehlt, Kandidaten werden nicht per KI geprüft.")
+    else:
+        gemini = Gemini(cfg.geheimnis("GEMINI_API_KEY"), cfg.analyst["gemini_modell"])
+
+    def analysiere(con, _):
+        bewertungen = bewerte_alle(con, unbewertete_ids(con), cfg.analyst)
+        if gemini:
+            pruefe_kandidaten(con, bewertungen, gemini, cfg.analyst)
+
+    durchgang.nach_durchgang = analysiere
     if "--einmal" in argv:
         ergebnisse = durchgang.laufe()
         return 0 if all(e is not None for e in ergebnisse.values()) else 1
