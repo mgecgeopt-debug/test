@@ -18,7 +18,7 @@ KEIN_EINZELTEIL = ("laptop", "notebook", "zoll", "2-in-1", "legion", "rog strix"
 # Komponenten-Klassen: zwei verschiedene im Titel = Bundle (z. B. "Ryzen 7 5800 | RTX 3070 | 1 TB SSD")
 KOMPONENTEN = {
     "cpu": re.compile(r"\b(i[3579][\s-]?\d{4,5}|ryzen|r[3579][\s-]?\d{4}|core i[3579])\b"),
-    "gpu": re.compile(r"\b(rtx|gtx|rx)\s?\d{3,4}\b"),
+    "gpu": re.compile(r"\b(rtx|gtx|rx|geforce|radeon|arc)\s?[a-z]?\d{3,4}\b|\b\d{4}\s?(ti|super|xt|fe)\b|\b(grafikkarte|gpu)\b"),
     "ram": re.compile(r"\b\d{1,3}\s?gb\b.*\b(ram|ddr[45])\b|\bddr[45]\b"),
     "speicher": re.compile(r"\b(ssd|nvme|hdd|m\.2)\b|\b\d(,\d)?\s?tb\b"),
     "mainboard": re.compile(r"\b(mainboard|motherboard|[zbh]\d{3}[a-z]?(-[a-z]+)?)\b"),

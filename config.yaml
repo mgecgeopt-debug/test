@@ -21,6 +21,10 @@ suchen:
     produkt_key: "rtx-3070"
     aktiv: true
     ausschluss: ["3070 ti", "3070ti", "eisblock", "wasserblock", "kühler"]   # andere Produkte, zählen nicht
+  - name: "Ryzen 7 7800X3D"
+    produkt_key: "ryzen-7-7800x3d"
+    aktiv: true
+    ausschluss: ["9800x3d", "9800 x3d", "7700x", "7700 x", "5800x3d", "5800 x3d"]
 
 sammler:
   intervall_minuten: 60        # später 30

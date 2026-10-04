@@ -176,6 +176,8 @@ def test_bundle_erkennung_erweitert():
     assert ist_bundle("17,3\" Asus TUF Gaming RTX 3070 Ti")
     assert ist_bundle("Intel i7-13700K + ASUS Prime Z790-A WiFi")
     assert ist_bundle("GigaByte B760 Gaming X DDR5 + Intel i7-13700K")
+    assert ist_bundle("AMD Ryzen 7 7800X3D | Zotac Gaming GeForce 4070 Ti Super")
+    assert ist_bundle("Formd T1 | 5080 FE | Ryzen 7 7800x3D")
     assert not ist_bundle("Gigabyte GeForce RTX 3070 Gaming OC 8G Grafikkarte")
     assert not ist_bundle("EVGA GeForce RTX 3070 8GB DDR 6")            # GPU + "ddr 6" ohne Leerzeichenregel
     assert not ist_bundle("Intel Core i7-13700K High-End-CPU")
