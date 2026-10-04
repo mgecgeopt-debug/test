@@ -3,8 +3,10 @@
 
 datenbank: data/deal_finder.sqlite
 
-# Eine Zeile je Suchbegriff. apify_task_id: Task in der Apify-Konsole zum Actor
-# lexis-solutions/ebay-kleinanzeigen. produkt_key fasst Schreibweisen zusammen.
+# Eine Zeile je Suchbegriff. produkt_key fasst Schreibweisen zusammen ("i7 13700K",
+# "i7-13700k" -> i7-13700k). apify_task_id kann weggelassen werden: dann legt das
+# Programm beim ersten Lauf selbst eine Task "deal-finder-<suche>" bei Apify an.
+# Neue Suche = neue Zeile. Pausieren = aktiv: false.
 suchen:
   - name: "i5 12600K"
     apify_task_id: "vPA1piYVcYY6fRWrT"
@@ -18,6 +20,7 @@ suchen:
     apify_task_id: "ZnlYc4rH5wAqlrexv"
     produkt_key: "rtx-3070"
     aktiv: true
+    ausschluss: ["3070 ti", "3070ti", "eisblock", "wasserblock", "kühler"]   # andere Produkte, zählen nicht
 
 sammler:
   intervall_minuten: 60        # später 30
@@ -41,5 +44,7 @@ analyst:
   bundles_melden: false
   max_bilder: 4
   gemini_modell: "gemini-2.5-flash"
+  gemini_pause_sekunden: 13      # Gratis-Tarif: 5 Anfragen/Minute. Mit Bezahl-Tarif auf 0 setzen.
+  max_gemini_pro_durchgang: 20   # mehr Kandidaten werden im nächsten Durchgang nachgeholt
   # Titel mit diesen Wörtern werden aussortiert (Groß-/Kleinschreibung egal)
   ausschluss_woerter: ["suche", "ankauf", "tausche", "gesucht"]

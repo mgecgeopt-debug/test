@@ -13,7 +13,17 @@ from datetime import datetime, timedelta, timezone
 
 log = logging.getLogger(__name__)
 
-BUNDLE_WOERTER = ("bundle", "set", "komplett", "mainboard", "+ ", " mit ", "kit", "pc ")
+BUNDLE_WOERTER = ("bundle", "komplett", "+ ", " set ", "kit ", " pc", "pc ", "rechner", "tower", "system")
+KEIN_EINZELTEIL = ("laptop", "notebook", "zoll", "2-in-1", "legion", "rog strix", "tuf gaming", "erazer", "omen")
+# Komponenten-Klassen: zwei verschiedene im Titel = Bundle (z. B. "Ryzen 7 5800 | RTX 3070 | 1 TB SSD")
+KOMPONENTEN = {
+    "cpu": re.compile(r"\b(i[3579][\s-]?\d{4,5}|ryzen|r[3579][\s-]?\d{4}|core i[3579])\b"),
+    "gpu": re.compile(r"\b(rtx|gtx|rx)\s?\d{3,4}\b"),
+    "ram": re.compile(r"\b\d{1,3}\s?gb\b.*\b(ram|ddr[45])\b|\bddr[45]\b"),
+    "speicher": re.compile(r"\b(ssd|nvme|hdd|m\.2)\b|\b\d(,\d)?\s?tb\b"),
+    "mainboard": re.compile(r"\b(mainboard|motherboard|[zbh]\d{3}[a-z]?(-[a-z]+)?)\b"),
+    "netzteil": re.compile(r"\b(netzteil|psu|\d{3,4}\s?w)\b"),
+}
 
 
 @dataclass
@@ -55,8 +65,22 @@ def ist_ausgeschlossen(title: str, preis: float | None, ausschluss: list[str]) -
 
 
 def ist_bundle(title: str) -> bool:
+    """Bundle, Komplett-PC oder Laptop: kein Einzelteil, zählt nicht zum Marktpreis."""
     t = f" {title.lower()} "
-    return any(w in t for w in BUNDLE_WOERTER)
+    if any(w in t for w in BUNDLE_WOERTER) or any(w in t for w in KEIN_EINZELTEIL):
+        return True
+    klassen = sum(1 for rx in KOMPONENTEN.values() if rx.search(t))
+    return klassen >= 2
+
+
+def ist_anderes_produkt(title: str, produkt_key: str, a: dict) -> bool:
+    """Suchspezifische Ausschlusswörter aus config.yaml, z. B. '3070 ti' bei rtx-3070."""
+    t = re.sub(r"[\s-]+", " ", title.lower())
+    for w in a.get("produkt_ausschluss", {}).get(produkt_key, []):
+        w = re.sub(r"[\s-]+", " ", w.lower())
+        if w in t or w.replace(" ", "") in t.replace(" ", ""):
+            return True
+    return False
 
 
 def berechne_marktpreis(preise: list[float], ausreisser_prozent: int) -> Marktpreis:
@@ -87,6 +111,7 @@ def marktpreis_aus_db(con: sqlite3.Connection, produkt_key: str, a: dict,
     ).fetchall()
     preise = [z["price"] for z in zeilen
               if z["id"] != ohne_listing and not ist_bundle(z["title"])
+              and not ist_anderes_produkt(z["title"], produkt_key, a)
               and ist_ausgeschlossen(z["title"], z["price"], a["ausschluss_woerter"]) is None]
     return berechne_marktpreis(preise, a["ausreisser_prozent"])
 
@@ -113,6 +138,8 @@ def bewerte(con: sqlite3.Connection, listing_id: str, a: dict, jetzt: datetime |
         return Bewertung(listing_id, "aussortiert", grund, preis=z["price"], versand=z["shipping_price"])
     if not a["bundles_melden"] and ist_bundle(z["title"]):
         return Bewertung(listing_id, "aussortiert", "Bundle", preis=z["price"], versand=z["shipping_price"])
+    if ist_anderes_produkt(z["title"], z["produkt_key"], a):
+        return Bewertung(listing_id, "aussortiert", "anderes Produkt (Ausschlusswort)", preis=z["price"], versand=z["shipping_price"])
 
     mp = marktpreis_aus_db(con, z["produkt_key"], a, jetzt, ohne_listing=listing_id)
     b.marktpreis, b.vergleichsanzahl = mp.median, mp.anzahl
@@ -171,6 +198,20 @@ def unbewertete_ids(con: sqlite3.Connection) -> list[str]:
     return [z["id"] for z in zeilen]
 
 
+def offene_kandidaten(con: sqlite3.Connection) -> list[Bewertung]:
+    """Kandidaten aus früheren Durchgängen, die Gemini noch nicht geprüft hat (z. B. wegen Rate-Limit)."""
+    zeilen = con.execute(
+        """SELECT e.listing_id, e.preis_bewertet, e.marktpreis, e.vergleichsanzahl, e.abstand_prozent, e.marge_euro
+           FROM evaluations e JOIN listings l ON l.id = e.listing_id
+           WHERE e.ergebnis = 'kandidat' AND e.ki_score IS NULL AND l.status = 'aktiv'
+             AND e.id = (SELECT id FROM evaluations WHERE listing_id = e.listing_id ORDER BY bewertet_am DESC, id DESC LIMIT 1)
+           ORDER BY e.abstand_prozent DESC"""
+    ).fetchall()
+    return [Bewertung(z["listing_id"], "kandidat", preis=z["preis_bewertet"], marktpreis=z["marktpreis"],
+                      vergleichsanzahl=z["vergleichsanzahl"], abstand_prozent=z["abstand_prozent"],
+                      marge_euro=z["marge_euro"]) for z in zeilen]
+
+
 def deal_text(b: Bewertung) -> str:
     """Kurze Zusammenfassung fürs Log."""
     return json.dumps(b.__dict__, ensure_ascii=False)
@@ -192,9 +233,14 @@ def pruefe_kandidaten(con: sqlite3.Connection, bewertungen: list[Bewertung], gem
     from deal_finder.gemini import gesamt_score  # lokal, damit analyst.py ohne google-genai testbar bleibt
 
     deals = []
+    geprueft = 0
     for b in bewertungen:
         if b.ergebnis != "kandidat":
             continue
+        if geprueft >= a.get("max_gemini_pro_durchgang", 20):
+            log.info("Gemini-Limit je Durchgang erreicht, Rest beim nächsten Mal")
+            break
+        geprueft += 1
         z = con.execute(
             """SELECT l.title, l.price, l.condition, l.description, l.image_urls, s.produkt_key
                FROM listings l JOIN searches s ON s.id = l.search_id WHERE l.id = ?""",

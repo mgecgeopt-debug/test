@@ -6,7 +6,7 @@ Optionen:
 import logging
 import sys
 
-from deal_finder.analyst import bewerte_alle, pruefe_kandidaten, unbewertete_ids
+from deal_finder.analyst import bewerte_alle, offene_kandidaten, pruefe_kandidaten, unbewertete_ids
 from deal_finder.apify import Apify
 from deal_finder.config import lade_config
 from deal_finder.db import sync_suchen, verbinde
@@ -42,14 +42,17 @@ def main(argv: list[str]) -> int:
     if "GEMINI_API_KEY" in fehlend:
         log.warning("GEMINI_API_KEY fehlt, Kandidaten werden nicht per KI geprüft.")
     else:
-        gemini = Gemini(cfg.geheimnis("GEMINI_API_KEY"), cfg.analyst["gemini_modell"])
+        gemini = Gemini(cfg.geheimnis("GEMINI_API_KEY"), cfg.analyst["gemini_modell"],
+                        pause_sekunden=cfg.analyst.get("gemini_pause_sekunden", 0))
 
     def analysiere(con, _):
         if telegram:
             verarbeite_reaktionen(con, telegram)
         bewertungen = bewerte_alle(con, unbewertete_ids(con), cfg.analyst)
         if gemini:
-            deals = pruefe_kandidaten(con, bewertungen, gemini, cfg.analyst)
+            neue = {b.listing_id for b in bewertungen}
+            nachholen = [b for b in offene_kandidaten(con) if b.listing_id not in neue]
+            deals = pruefe_kandidaten(con, bewertungen + nachholen, gemini, cfg.analyst)
             if telegram and deals:
                 melde_deals(con, deals, telegram, cfg.analyst)
 

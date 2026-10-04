@@ -1,0 +1,22 @@
+# systemd-Dienst für Linux-Server oder Raspberry Pi.
+# Installation:
+#   sudo cp deploy/deal-finder.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now deal-finder
+#   journalctl -u deal-finder -f
+# Pfade und Benutzer unten anpassen.
+[Unit]
+Description=Kleinanzeigen Deal-Finder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=carl
+WorkingDirectory=/home/carl/deal-finder
+EnvironmentFile=/home/carl/deal-finder/.env
+ExecStart=/home/carl/deal-finder/.venv/bin/python -m deal_finder.main
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

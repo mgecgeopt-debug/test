@@ -1,6 +1,6 @@
 """Lädt config.yaml und die Geheimnisse aus Umgebungsvariablen bzw. .env."""
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -24,9 +24,10 @@ def lade_env(pfad: Path = PROJEKT_ORDNER / ".env") -> None:
 @dataclass
 class Suche:
     name: str
-    apify_task_id: str
     produkt_key: str
+    apify_task_id: str = ""   # leer = wird beim ersten Lauf automatisch angelegt
     aktiv: bool = True
+    ausschluss: list[str] = field(default_factory=list)  # Titel mit diesen Wörtern zählen nicht (z. B. "3070 ti")
 
 
 @dataclass
@@ -53,4 +54,6 @@ def lade_config(pfad: Path = PROJEKT_ORDNER / "config.yaml") -> Config:
     if not db.is_absolute():
         db = PROJEKT_ORDNER / db
     suchen = [Suche(**s) for s in daten["suchen"]]
-    return Config(datenbank=db, suchen=suchen, sammler=daten["sammler"], analyst=daten["analyst"])
+    analyst = dict(daten["analyst"])
+    analyst["produkt_ausschluss"] = {s.produkt_key: s.ausschluss for s in suchen}
+    return Config(datenbank=db, suchen=suchen, sammler=daten["sammler"], analyst=analyst)

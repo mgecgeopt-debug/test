@@ -125,11 +125,16 @@ def speichere_items(con: sqlite3.Connection, search_id: int, items: list[dict], 
 
 def sammle_suche(con: sqlite3.Connection, cfg: Config, apify: Apify, suche: Suche) -> Ergebnis:
     """Ein Apify-Lauf für eine Suche. Erster Lauf = Tag Null mit max_items_tag_null."""
-    zeile = con.execute("SELECT id, tag_null_am FROM searches WHERE query = ?", (suche.name,)).fetchone()
+    zeile = con.execute("SELECT id, tag_null_am, apify_task_id FROM searches WHERE query = ?", (suche.name,)).fetchone()
     if zeile is None:
         raise RuntimeError(f"Suche '{suche.name}' nicht in der Datenbank, erst sync_suchen aufrufen")
     tag_null = zeile["tag_null_am"] is None
     s = cfg.sammler
+    task_id = zeile["apify_task_id"]
+    if not task_id:
+        task_id = apify.finde_oder_erstelle_task(suche.name, s["max_items"])
+        con.execute("UPDATE searches SET apify_task_id = ? WHERE id = ?", (task_id, zeile["id"]))
+        con.commit()
     eingabe = {
         "query": suche.name,
         "maxItems": s["max_items_tag_null"] if tag_null else s["max_items"],
@@ -139,7 +144,7 @@ def sammle_suche(con: sqlite3.Connection, cfg: Config, apify: Apify, suche: Such
         "proxy": {"useApifyProxy": True},
     }
     log.info("Suche '%s': %s", suche.name, "Tag-Null-Lauf" if tag_null else "Monitoring-Lauf")
-    items = apify.lauf(suche.apify_task_id, eingabe, s["wait_for_finish_sekunden"])
+    items = apify.lauf(task_id, eingabe, s["wait_for_finish_sekunden"])
     erg = speichere_items(con, zeile["id"], items)
     if tag_null:
         con.execute("UPDATE searches SET tag_null_am = ? WHERE id = ?", (_jetzt(), zeile["id"]))

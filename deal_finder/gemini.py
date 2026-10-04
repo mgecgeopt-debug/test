@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 
 import requests
@@ -78,14 +79,36 @@ def lade_bild(url: str, timeout: int = 20) -> bytes | None:
 
 
 class Gemini:
-    def __init__(self, api_key: str, modell: str = "gemini-2.5-flash", client=None):
+    def __init__(self, api_key: str, modell: str = "gemini-2.5-flash", client=None,
+                 pause_sekunden: float = 0, schlafen=time.sleep):
         self.modell = modell
         self._client = client or genai.Client(api_key=api_key)
         self._cfg = types.GenerateContentConfig(temperature=0.1, response_mime_type="application/json")
+        self.pause = pause_sekunden
+        self._schlafen = schlafen
+        self._letzter_aufruf = 0.0
 
-    def _frage(self, inhalte) -> dict:
-        antwort = self._client.models.generate_content(model=self.modell, contents=inhalte, config=self._cfg)
-        return parse_json(antwort.text or "")
+    def _frage(self, inhalte, versuche: int = 3) -> dict:
+        """Ein Gemini-Aufruf mit Mindestabstand und Wiederholung bei Rate-Limit (429)."""
+        for versuch in range(1, versuche + 1):
+            wartezeit = self.pause - (time.monotonic() - self._letzter_aufruf)
+            if wartezeit > 0:
+                self._schlafen(wartezeit)
+            self._letzter_aufruf = time.monotonic()
+            try:
+                antwort = self._client.models.generate_content(model=self.modell, contents=inhalte, config=self._cfg)
+                return parse_json(antwort.text or "")
+            except Exception as e:  # noqa: BLE001
+                text = str(e)
+                if "429" not in text and "RESOURCE_EXHAUSTED" not in text:
+                    raise
+                if versuch == versuche:
+                    raise
+                m = re.search(r"retry in (\d+(?:\.\d+)?)", text, flags=re.I)
+                pause = float(m.group(1)) + 1 if m else 60.0
+                log.warning("Gemini Rate-Limit, warte %.0f s (Versuch %d/%d)", pause, versuch, versuche)
+                self._schlafen(pause)
+        raise RuntimeError("unreachable")
 
     def pruefe_text(self, produkt: str, titel: str, preis: float, zustand: str | None, beschreibung: str) -> TextBefund:
         prompt = TEXT_PROMPT.format(produkt=produkt, titel=titel, preis=f"{preis:.0f}",

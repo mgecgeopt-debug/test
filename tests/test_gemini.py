@@ -63,3 +63,30 @@ def test_gesamt_score():
     assert gesamt_score(t, BildBefund(schaeden=True, modell_sichtbar=True)) == 6
     assert gesamt_score(t, BildBefund(modell_sichtbar=True, ovp=True)) == 10
     assert gesamt_score(TextBefund(True, 2), BildBefund(echtes_foto=False)) == 0
+
+
+def test_rate_limit_wiederholung():
+    schlaf = []
+    client = SimpleNamespace(models=FakeModels(['{"passt": true, "score": 7}']))
+    aufrufe = []
+    orig = client.models.generate_content
+
+    def flaky(model, contents, config):
+        aufrufe.append(1)
+        if len(aufrufe) == 1:
+            raise RuntimeError("429 RESOURCE_EXHAUSTED ... Please retry in 3.5s.")
+        return orig(model, contents, config)
+
+    client.models.generate_content = flaky
+    g = Gemini("KEY", client=client, pause_sekunden=0, schlafen=schlaf.append)
+    assert g.pruefe_text("x", "t", 1, None, "").score == 7
+    assert len(aufrufe) == 2 and schlaf == [4.5]
+
+
+def test_pause_zwischen_aufrufen():
+    schlaf = []
+    g, _ = fake_gemini('{"passt": true, "score": 7}', '{"passt": true, "score": 7}')
+    g.pause, g._schlafen = 13, schlaf.append
+    g.pruefe_text("x", "t", 1, None, "")
+    g.pruefe_text("x", "t", 1, None, "")
+    assert len(schlaf) == 1 and 12 < schlaf[0] <= 13

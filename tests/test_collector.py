@@ -62,3 +62,35 @@ def test_speichern_preisaenderung_und_verschwunden(con):
     # dritter Lauf identisch: nichts Neues
     erg = speichere_items(con, 2, lauf2, "2026-10-04T12:00:00+00:00")
     assert erg.neu == 0 and erg.geaendert == 0 and erg.verschwunden == 0
+
+
+def test_task_wird_automatisch_angelegt(con):
+    from deal_finder.collector import sammle_suche
+    from deal_finder.config import Suche
+
+    class FakeApify:
+        def __init__(self):
+            self.angelegt = []
+
+        def finde_oder_erstelle_task(self, query, max_items=50):
+            self.angelegt.append(query)
+            return "NEU123"
+
+        def lauf(self, task_id, eingabe, wait):
+            assert task_id == "NEU123"
+            self.max_items = eingabe["maxItems"]
+            return []
+
+    cfg = lade_config(PROJEKT_ORDNER / "config.yaml")
+    neu = Suche(name="RTX 4070", produkt_key="rtx-4070")
+    cfg.suchen.append(neu)
+    sync_suchen(con, cfg.suchen)
+    apify = FakeApify()
+    sammle_suche(con, cfg, apify, neu)
+    assert apify.angelegt == ["RTX 4070"] and apify.max_items == 200  # Tag Null
+    assert con.execute("SELECT apify_task_id, tag_null_am FROM searches WHERE query='RTX 4070'").fetchone()[0] == "NEU123"
+    # zweiter Lauf: Task-ID bleibt, auch wenn Config sie nicht kennt
+    sync_suchen(con, cfg.suchen)
+    assert con.execute("SELECT apify_task_id FROM searches WHERE query='RTX 4070'").fetchone()[0] == "NEU123"
+    sammle_suche(con, cfg, apify, neu)
+    assert apify.angelegt == ["RTX 4070"] and apify.max_items == 50  # nicht nochmal angelegt, Monitoring

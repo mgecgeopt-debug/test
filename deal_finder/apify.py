@@ -7,6 +7,7 @@ import requests
 log = logging.getLogger(__name__)
 API = "https://api.apify.com/v2"
 FERTIG = {"SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"}
+ACTOR = "lexis-solutions~ebay-kleinanzeigen"
 
 
 class ApifyFehler(RuntimeError):
@@ -62,6 +63,30 @@ class Apify:
             if len(seite) < 1000:
                 return items
             offset += 1000
+
+    def finde_oder_erstelle_task(self, query: str, max_items: int = 50) -> str:
+        """Sucht eine Task 'deal-finder-<query>' zum Kleinanzeigen-Actor, legt sie sonst an (1 GB)."""
+        name = "deal-finder-" + "".join(c if c.isalnum() else "-" for c in query.lower()).strip("-")
+        r = requests.get(f"{self._basis}/actor-tasks", params={"limit": 1000}, headers=self._kopf, timeout=self.timeout)
+        r.raise_for_status()
+        for t in r.json()["data"]["items"]:
+            if t["name"] == name:
+                return t["id"]
+        akt = requests.get(f"{self._basis}/acts/{ACTOR}", headers=self._kopf, timeout=self.timeout)
+        akt.raise_for_status()
+        body = {
+            "actId": akt.json()["data"]["id"], "name": name,
+            "options": {"memoryMbytes": 1024, "timeoutSecs": 600},
+            "input": {"query": query, "maxItems": max_items, "monitoringMode": True,
+                      "monitoringFields": ["price", "title"], "fetchViewsCount": False,
+                      "proxy": {"useApifyProxy": True}},
+        }
+        r = requests.post(f"{self._basis}/actor-tasks", headers=self._kopf, json=body, timeout=self.timeout)
+        if r.status_code >= 400:
+            raise ApifyFehler(f"Task {name} anlegen: HTTP {r.status_code} {r.text[:200]}")
+        task_id = r.json()["data"]["id"]
+        log.info("Apify-Task '%s' angelegt: %s", name, task_id)
+        return task_id
 
     def lauf(self, task_id: str, eingabe: dict | None = None, wait_for_finish: int = 120) -> list[dict]:
         """Kompletter Durchgang: starten, warten, Items holen. Wirft ApifyFehler bei Misserfolg."""

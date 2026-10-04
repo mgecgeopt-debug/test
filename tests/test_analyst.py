@@ -166,3 +166,34 @@ def test_pruefe_kandidaten_abgelehnt(con):
     bew = bewerte_alle(con, ["2"], A, JETZT)
     assert pruefe_kandidaten(con, bew, FakeGemini(passt=False), A, JETZT) == []
     assert con.execute("SELECT grund FROM evaluations WHERE listing_id='2'").fetchone()[0] == "nicht das gesuchte Produkt"
+
+
+def test_bundle_erkennung_erweitert():
+    from deal_finder.analyst import ist_anderes_produkt
+    assert ist_bundle("Ryzen 7 5800 | RTX 3070 | 1 TB SSD")           # 3 Komponenten
+    assert ist_bundle("Gaming Laptop RTX 3070, i7 11800H")             # Laptop
+    assert ist_bundle("Lenovo Legion 5 Pro RTX 3070 32GB RAM")
+    assert ist_bundle("17,3\" Asus TUF Gaming RTX 3070 Ti")
+    assert ist_bundle("Intel i7-13700K + ASUS Prime Z790-A WiFi")
+    assert ist_bundle("GigaByte B760 Gaming X DDR5 + Intel i7-13700K")
+    assert not ist_bundle("Gigabyte GeForce RTX 3070 Gaming OC 8G Grafikkarte")
+    assert not ist_bundle("EVGA GeForce RTX 3070 8GB DDR 6")            # GPU + "ddr 6" ohne Leerzeichenregel
+    assert not ist_bundle("Intel Core i7-13700K High-End-CPU")
+    assert not ist_bundle("Nvidia RTX 3070 8 GB")                       # "8 GB" ohne RAM-Wort
+    a = {"produkt_ausschluss": {"rtx-3070": ["3070 ti", "3070ti"]}}
+    assert ist_anderes_produkt("GEFORCE RTX 3070 Ti OC Edition", "rtx-3070", a)
+    assert ist_anderes_produkt("GAMING RTX3070TI", "rtx-3070", a)
+    assert ist_anderes_produkt("RTX 3070-Ti", "rtx-3070", a)
+    assert not ist_anderes_produkt("RTX 3070 Twin Edge", "rtx-3070", a)
+    assert not ist_anderes_produkt("RTX 3070 Ti", "i7-13700k", a)
+
+
+def test_offene_kandidaten(con):
+    from deal_finder.analyst import offene_kandidaten
+    fuelle_markt(con)
+    speichere_items(con, 2, [item(1, "200 €"), item(2, "250 €")], JETZT.isoformat())
+    bewerte_alle(con, ["1", "2"], A, JETZT)
+    offen = offene_kandidaten(con)
+    assert [b.listing_id for b in offen] == ["1"] and offen[0].marktpreis is not None
+    con.execute("UPDATE evaluations SET ki_score = 8, ergebnis = 'deal' WHERE listing_id = '1'"); con.commit()
+    assert offene_kandidaten(con) == []

@@ -98,7 +98,8 @@ def sync_suchen(con: sqlite3.Connection, suchen) -> None:
             """INSERT INTO searches (query, apify_task_id, produkt_key, aktiv)
                VALUES (?, ?, ?, ?)
                ON CONFLICT(query) DO UPDATE SET
-                 apify_task_id = excluded.apify_task_id,
+                 apify_task_id = CASE WHEN excluded.apify_task_id <> '' THEN excluded.apify_task_id
+                                      ELSE searches.apify_task_id END,
                  produkt_key   = excluded.produkt_key,
                  aktiv         = excluded.aktiv""",
             (s.name, s.apify_task_id, s.produkt_key, int(s.aktiv)),
