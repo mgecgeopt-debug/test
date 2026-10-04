@@ -6,6 +6,7 @@ Optionen:
 import logging
 import sys
 
+from deal_finder.analyst import bewerte_alle, unbewertete_ids
 from deal_finder.apify import Apify
 from deal_finder.config import lade_config
 from deal_finder.db import sync_suchen, verbinde
@@ -35,6 +36,7 @@ def main(argv: list[str]) -> int:
         telegram = Telegram(cfg.geheimnis("TELEGRAM_BOT_TOKEN"), cfg.geheimnis("TELEGRAM_CHAT_ID"))
 
     durchgang = Durchgang(cfg, Apify(cfg.geheimnis("APIFY_TOKEN")), telegram)
+    durchgang.nach_durchgang = lambda con, _: bewerte_alle(con, unbewertete_ids(con), cfg.analyst)
     if "--einmal" in argv:
         ergebnisse = durchgang.laufe()
         return 0 if all(e is not None for e in ergebnisse.values()) else 1
