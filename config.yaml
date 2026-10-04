@@ -7,15 +7,15 @@ datenbank: data/deal_finder.sqlite
 # lexis-solutions/ebay-kleinanzeigen. produkt_key fasst Schreibweisen zusammen.
 suchen:
   - name: "i5 12600K"
-    apify_task_id: "TASK_ID_I5_12600K"
+    apify_task_id: "vPA1piYVcYY6fRWrT"
     produkt_key: "i5-12600k"
     aktiv: true
   - name: "i7 13700K"
-    apify_task_id: "TASK_ID_I7_13700K"
+    apify_task_id: "MRiHjusuVNdqvEWrC"
     produkt_key: "i7-13700k"
     aktiv: true
   - name: "RTX 3070"
-    apify_task_id: "TASK_ID_RTX_3070"
+    apify_task_id: "ZnlYc4rH5wAqlrexv"
     produkt_key: "rtx-3070"
     aktiv: true
 
