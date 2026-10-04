@@ -74,7 +74,7 @@ def test_baue_meldung():
     assert bild == "https://img/1.jpg"
     assert "&lt;top&gt;" in text and "195 €" in text and "+ 5.99 €" in text
     assert "Markt 298 €" in text and "nur Abholung" in text and "KI-Score 8/10" in text
-    assert "155 Euro inklusive Versand" in text and "BIOS-Stand?" in text
+    assert "155 Euro bei Abholung" in text and "BIOS-Stand?" in text
     assert len(text) < 1024
 
 
