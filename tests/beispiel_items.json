@@ -1,0 +1,25 @@
+[
+  {
+    "id": "2001", "title": "Intel Core i7 13700K", "price": "280 € VB", "priceCurrency": "EUR",
+    "shippingPrice": "+ 5,99 € Versand", "condition": "Sehr Gut", "address": "10115 Berlin",
+    "date": "2026-10-03", "descriptionText": "Getestet, läuft stabil. Mit OVP.",
+    "sellerName": "Max", "sellerURL": "https://www.kleinanzeigen.de/s-bestandsliste.html?userId=1",
+    "imageURLs": ["https://img.kleinanzeigen.de/a.jpg", "https://img.kleinanzeigen.de/b.jpg"],
+    "primaryImageURL": "https://img.kleinanzeigen.de/a.jpg",
+    "url": "https://www.kleinanzeigen.de/s-anzeige/i7-13700k/2001"
+  },
+  {
+    "id": "2002", "title": "i7-13700K Bundle mit Mainboard", "price": "1.250 €",
+    "shippingPrice": "Nur Abholung", "condition": null, "address": "80331 München",
+    "date": "2026-10-03", "descriptionText": "Komplett-Bundle.",
+    "sellerName": "Anna", "sellerURL": null, "imageURLs": null, "primaryImageURL": null,
+    "url": "https://www.kleinanzeigen.de/s-anzeige/bundle/2002"
+  },
+  {
+    "id": "2003", "title": "Suche i7 13700K", "price": "VB",
+    "shippingPrice": null, "address": "Hamburg", "date": "2026-10-03",
+    "descriptionText": "Kaufe gegen Bar.", "sellerName": "Tom",
+    "sellerURL": null, "imageURLs": [], "primaryImageURL": null,
+    "url": "https://www.kleinanzeigen.de/s-anzeige/suche/2003"
+  }
+]
