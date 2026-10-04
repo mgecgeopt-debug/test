@@ -1,0 +1,45 @@
+# Kleinanzeigen Deal-Finder: alle Schwellen und Suchen.
+# Geheimnisse (Tokens, Chat-ID) stehen NICHT hier, sondern in .env bzw. Umgebungsvariablen.
+
+datenbank: data/deal_finder.sqlite
+
+# Eine Zeile je Suchbegriff. apify_task_id: Task in der Apify-Konsole zum Actor
+# lexis-solutions/ebay-kleinanzeigen. produkt_key fasst Schreibweisen zusammen.
+suchen:
+  - name: "i5 12600K"
+    apify_task_id: "TASK_ID_I5_12600K"
+    produkt_key: "i5-12600k"
+    aktiv: true
+  - name: "i7 13700K"
+    apify_task_id: "TASK_ID_I7_13700K"
+    produkt_key: "i7-13700k"
+    aktiv: true
+  - name: "RTX 3070"
+    apify_task_id: "TASK_ID_RTX_3070"
+    produkt_key: "rtx-3070"
+    aktiv: true
+
+sammler:
+  intervall_minuten: 60        # später 30
+  ruhezeit_von: 0              # keine Läufe von 0 Uhr ...
+  ruhezeit_bis: 7              # ... bis 7 Uhr
+  wiederholung_nach_minuten: 5 # bei Fehler einmal wiederholen
+  wait_for_finish_sekunden: 120
+  max_items: 50
+  max_items_tag_null: 200      # erster Lauf je Suche
+
+analyst:
+  mindestabstand_prozent: 25   # Preis + Versand mind. 25 % unter Marktpreis
+  mindestmarge_euro: 30
+  mindest_ki_score: 7
+  mindest_vergleichsanzeigen: 8
+  marktpreis_tage: 30
+  ausreisser_prozent: 10       # unterstes und oberstes 10 % entfernen
+  eigener_versand_euro: 6
+  verkaufsfaktor: 0.95         # Verkaufspreis = Marktpreis × 0.95
+  angebotsfaktor: 0.80         # Verhandlungsangebot = 80 % des Anzeigenpreises
+  bundles_melden: false
+  max_bilder: 4
+  gemini_modell: "gemini-2.5-flash"
+  # Titel mit diesen Wörtern werden aussortiert (Groß-/Kleinschreibung egal)
+  ausschluss_woerter: ["suche", "ankauf", "tausche", "gesucht"]
